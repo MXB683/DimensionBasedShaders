@@ -105,9 +105,7 @@ public class SettingsScreen extends Screen {
 		try {
 			File configDir = new File("config");
 			if (!configDir.exists()) {
-				if (!configDir.mkdir()) {
-					throw new IOException("Failed to create config directory");
-				}
+				configDir.mkdir();
 			}
 
 			Config config = new Config(
