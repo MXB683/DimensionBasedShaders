@@ -1,0 +1,9 @@
+{
+  "dimension_based_shaders.settings.title": "Dimension Based Shaders",
+  "dimension_based_shaders.settings.overworld_shader": "Overworld Shader:",
+  "dimension_based_shaders.settings.nether_shader": "Nether Shader:",
+  "dimension_based_shaders.settings.end_shader": "The End Shader:",
+  "dimension_based_shaders.settings.close_button": "Cancel",
+  "dimension_based_shaders.settings.save_button": "Save & Quit",
+  "dimension_based_shaders.settings.get_current_button": "Get Current"
+}

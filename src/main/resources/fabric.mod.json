@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "dimension_based_shaders",
+  "version": "${version}",
+  "name": "Dimension Based Shaders",
+  "description": "This mod makes (iris) shaders switch based on the dimension you're in",
+  "authors": [
+    "MXB683"
+  ],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/dimension_based_shaders/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.mxb_683.dimension_based_shaders.client.DimensionBasedShadersClient"
+    ],
+    "main": [
+      "net.mxb_683.dimension_based_shaders.DimensionBasedShaders"
+    ],
+    "modmenu": [
+      "net.mxb_683.dimension_based_shaders.modmenu.SettingsMenu"
+    ]
+  },
+  "mixins": [
+    "dimension_based_shaders.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "iris": ">=1.7.0",
+    "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
+    "modmenu": "*"
+  },
+  "custom": {
+    "modmenu": {
+    }
+  }
+}
