@@ -139,6 +139,10 @@ public class SettingsScreen extends Screen {
 			this.netherShader = netherShader;
 			this.endShader = endShader;
 		}
+
+		public Config() {
+			this("", "", "");
+		}
 	}
 
 	private String getPackName() {

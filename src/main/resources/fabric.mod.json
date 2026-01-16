@@ -29,6 +29,7 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "iris": ">=1.7.0",
+    "sodium": "*",
     "minecraft": "${minecraft_version}"
   },
   "suggests": {

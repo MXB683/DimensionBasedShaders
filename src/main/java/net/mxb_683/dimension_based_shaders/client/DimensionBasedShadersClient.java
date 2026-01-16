@@ -9,43 +9,47 @@ import net.minecraft.util.ActionResult;
 import net.mxb_683.dimension_based_shaders.callback.WorldLoadCallback;
 import net.mxb_683.dimension_based_shaders.modmenu.SettingsScreen;
 
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class DimensionBasedShadersClient implements ClientModInitializer {
+
+	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+	private static final Path CONFIG_PATH = Path.of("config", "dimension_based_shaders.json");
+
 	@Override
 	public void onInitializeClient() {
 		WorldLoadCallback.EVENT.register(player -> {
 			try {
 				String dimensionName = Iris.getCurrentDimension().toString();
 				IrisConfig irisConfig = Iris.getIrisConfig();
-				Gson gson = new GsonBuilder().setPrettyPrinting().create();
-				FileReader reader = new FileReader("config/dimension_based_shaders.json");
-				SettingsScreen.Config config = gson.fromJson(reader, SettingsScreen.Config.class);
-				reader.close();
+
+				SettingsScreen.Config config = loadOrCreateConfig();
+
 				switch (dimensionName) {
 					case "minecraft:overworld":
 						irisConfig.setShadersEnabled(true);
 						irisConfig.setShaderPackName(config.overworldShader);
 						break;
-
 					case "minecraft:the_nether":
 						irisConfig.setShadersEnabled(true);
 						irisConfig.setShaderPackName(config.netherShader);
 						break;
-
 					case "minecraft:the_end":
 						irisConfig.setShadersEnabled(true);
 						irisConfig.setShaderPackName(config.endShader);
 						break;
-
 					case "":
 						irisConfig.setShadersEnabled(false);
 						break;
-
-					case null, default:
+					default:
 						break;
 				}
+
 				irisConfig.save();
 				Iris.reload();
 			} catch (IOException e) {
@@ -54,5 +58,22 @@ public class DimensionBasedShadersClient implements ClientModInitializer {
 
 			return ActionResult.PASS;
 		});
+	}
+
+	private static SettingsScreen.Config loadOrCreateConfig() throws IOException {
+		Files.createDirectories(CONFIG_PATH.getParent());
+
+		if (Files.notExists(CONFIG_PATH)) {
+			SettingsScreen.Config defaults = new SettingsScreen.Config();
+			try (Writer writer = Files.newBufferedWriter(CONFIG_PATH, StandardCharsets.UTF_8)) {
+				GSON.toJson(defaults, writer);
+			}
+			return defaults;
+		}
+
+		try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {
+			SettingsScreen.Config cfg = GSON.fromJson(reader, SettingsScreen.Config.class);
+			return (cfg != null) ? cfg : new SettingsScreen.Config();
+		}
 	}
 }
