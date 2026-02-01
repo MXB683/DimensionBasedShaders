@@ -7,21 +7,28 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.gui.widget.TextWidget;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 
-import java.io.*;
-import java.util.Objects;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class SettingsScreen extends Screen {
 	private static final Text SETTINGS_TITLE = Text.translatable("dimension_based_shaders.settings.title");
-	private static final Text OVERWORLD_LABEL = Text.translatable("dimension_based_shaders.settings.overworld_shader");
-	private static final Text NETHER_LABEL = Text.translatable("dimension_based_shaders.settings.nether_shader");
-	private static final Text END_LABEL = Text.translatable("dimension_based_shaders.settings.end_shader");
 	private static final int TEXT_FIELD_MAX_LENGTH = 256;
+
 	private final Screen parent;
-	private TextFieldWidget overworldShaderField;
-	private TextFieldWidget netherShaderField;
-	private TextFieldWidget endShaderField;
+
+	// One text field per dimension id (e.g. "minecraft:overworld", "modid:my_dim")
+	private final Map<String, TextFieldWidget> shaderFieldsByDimension = new LinkedHashMap<>();
 
 	protected SettingsScreen(Screen parent) {
 		super(SETTINGS_TITLE);
@@ -30,94 +37,112 @@ public class SettingsScreen extends Screen {
 
 	@Override
 	protected void init() {
-		int labelWidth = 200;
+		int labelWidth = 220;
 		int buttonWidth = 100;
 		int centerX = this.width / 2;
 		int fieldWidth = this.width - labelWidth - buttonWidth - 60;
 
-		// title
 		this.addDrawableChild(new TextWidget(centerX - 75, 20, 150, 20, SETTINGS_TITLE, this.textRenderer));
 
-		// overworld shader
-		this.addDrawableChild(new TextWidget(20, 70, labelWidth, 20, OVERWORLD_LABEL, this.textRenderer));
+		// Build list of dimension ids known to the client right now.
+		// This includes modded dimensions as long as they're present in the synced registries.
+		Map<String, String> dimensionIdsToLabel = new LinkedHashMap<>();
 
-		overworldShaderField = new TextFieldWidget(this.textRenderer, labelWidth + 30, 70, fieldWidth, 20,
-				Text.empty());
-		overworldShaderField.setMaxLength(TEXT_FIELD_MAX_LENGTH);
-		this.addDrawableChild(overworldShaderField);
+		// Always include vanilla ids (so the menu still shows something even if registry access fails)
+		dimensionIdsToLabel.put("minecraft:overworld", "minecraft:overworld");
+		dimensionIdsToLabel.put("minecraft:the_nether", "minecraft:the_nether");
+		dimensionIdsToLabel.put("minecraft:the_end", "minecraft:the_end");
+
+		// Always include the current dimension if registry access fails
+		if (this.client.world != null) {
+			dimensionIdsToLabel.put(this.client.world.getRegistryKey().getValue().toString(), this.client.world.getRegistryKey().getValue().toString());
+		}
+
+		if (this.client.world != null) {
+			try {
+				for (Identifier id : this.client.world.getRegistryManager().getOrThrow(RegistryKeys.DIMENSION_TYPE).getIds()) {
+					if (id.toString().equals("minecraft:overworld_caves")) continue;
+					dimensionIdsToLabel.putIfAbsent(id.toString(), id.toString());
+				}
+			} catch (Throwable ignored) {
+				// If anything goes wrong (e.g. API differences), fall back to the vanilla list above.
+			}
+		}
+
+		// Load config once, then populate fields
+		Config config;
+		try {
+			config = getConfig();
+		} catch (FileNotFoundException e) {
+			config = new Config();
+		}
+
+		int y = 70;
+		int rowHeight = 28;
+
+		for (Map.Entry<String, String> entry : dimensionIdsToLabel.entrySet()) {
+			String dimId = entry.getKey();
+			String label = entry.getValue();
+
+			// label
+			this.addDrawableChild(new TextWidget(20, y, labelWidth, 20, Text.literal(label), this.textRenderer));
+
+			// text field
+			TextFieldWidget field = new TextFieldWidget(this.textRenderer, labelWidth + 30, y, fieldWidth, 20, Text.empty());
+			field.setMaxLength(TEXT_FIELD_MAX_LENGTH);
+
+			String existing = config.shaders.getOrDefault(dimId, "");
+			field.setText(existing);
+
+			this.addDrawableChild(field);
+			shaderFieldsByDimension.put(dimId, field);
+
+			// "use current pack" button for this row
+			this.addDrawableChild(ButtonWidget.builder(
+					Text.translatable("dimension_based_shaders.settings.get_current_button"),
+					button -> field.setText(getPackName())
+			).dimensions(labelWidth + fieldWidth + 40, y, buttonWidth, 20).build());
+
+			y += rowHeight;
+		}
+
+		// cancel/save buttons
+		this.addDrawableChild(ButtonWidget.builder(
+				Text.translatable("dimension_based_shaders.settings.close_button"),
+				button -> this.client.setScreen(this.parent)
+		).dimensions(centerX - 155, this.height - 40, 150, 20).build());
 
 		this.addDrawableChild(ButtonWidget.builder(
-				Text.translatable("dimension_based_shaders.settings.get_current_button"),
-				button -> overworldShaderField.setText(getPackName())
-		).dimensions(labelWidth + fieldWidth + 40, 70, buttonWidth, 20).build());
-
-
-		// nether shader
-		this.addDrawableChild(new TextWidget(20, 100, labelWidth, 20, NETHER_LABEL, this.textRenderer));
-		netherShaderField = new TextFieldWidget(this.textRenderer, labelWidth + 30, 100, fieldWidth, 20,
-				Text.empty());
-		netherShaderField.setMaxLength(TEXT_FIELD_MAX_LENGTH);
-		this.addDrawableChild(netherShaderField);
-
-		this.addDrawableChild(ButtonWidget.builder(
-				Text.translatable("dimension_based_shaders.settings.get_current_button"),
-				button -> netherShaderField.setText(getPackName())
-		).dimensions(labelWidth + fieldWidth + 40, 100, buttonWidth, 20).build());
-
-
-		// end shader
-		this.addDrawableChild(new TextWidget(20, 130, labelWidth, 20, END_LABEL, this.textRenderer));
-		endShaderField = new TextFieldWidget(this.textRenderer, labelWidth + 30, 130, fieldWidth, 20,
-				Text.empty());
-		endShaderField.setMaxLength(TEXT_FIELD_MAX_LENGTH);
-		this.addDrawableChild(endShaderField);
-
-		this.addDrawableChild(ButtonWidget.builder(
-				Text.translatable("dimension_based_shaders.settings.get_current_button"),
-				button -> endShaderField.setText(getPackName())
-		).dimensions(labelWidth + fieldWidth + 40, 130, buttonWidth, 20).build());
-
-
-		// cancel button
-		this.addDrawableChild(ButtonWidget.builder(Text.translatable("dimension_based_shaders.settings.close_button"),
-				button -> this.client.setScreen(this.parent)).dimensions(centerX - 155, this.height - 40, 150,
-				20).build());
-		// save button
-		this.addDrawableChild(ButtonWidget.builder(Text.translatable("dimension_based_shaders.settings.save_button"),
+				Text.translatable("dimension_based_shaders.settings.save_button"),
 				button -> {
 					saveConfig();
 					this.client.setScreen(this.parent);
-				}).dimensions(centerX + 5, this.height - 40, 150,
-				20).build());
-
-		// restore
-		try {
-			Config config = getConfig();
-			overworldShaderField.setText(config.overworldShader);
-			netherShaderField.setText(config.netherShader);
-			endShaderField.setText(config.endShader);
-		} catch (FileNotFoundException e) {
-			throw new RuntimeException(e);
-		}
+				}
+		).dimensions(centerX + 5, this.height - 40, 150, 20).build());
 	}
 
 	private void saveConfig() {
 		try {
 			File configDir = new File("config");
 			if (!configDir.exists()) {
+				//noinspection ResultOfMethodCallIgnored
 				configDir.mkdir();
 			}
 
-			Config config = new Config(
-					overworldShaderField.getText(),
-					netherShaderField.getText(),
-					endShaderField.getText()
-			);
+			Config config = new Config();
+
+			for (Map.Entry<String, TextFieldWidget> e : shaderFieldsByDimension.entrySet()) {
+				String dimId = e.getKey();
+				String shaderPack = e.getValue().getText().trim();
+				if (!shaderPack.isEmpty()) {
+					config.shaders.put(dimId, shaderPack);
+				}
+			}
 
 			Gson gson = new GsonBuilder().setPrettyPrinting().create();
-			FileWriter writer = new FileWriter("config/dimension_based_shaders.json");
-			gson.toJson(config, writer);
-			writer.close();
+			try (FileWriter writer = new FileWriter("config/dimension_based_shaders.json")) {
+				gson.toJson(config, writer);
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -126,26 +151,20 @@ public class SettingsScreen extends Screen {
 	private Config getConfig() throws FileNotFoundException {
 		Gson gson = new GsonBuilder().setPrettyPrinting().create();
 		FileReader reader = new FileReader("config/dimension_based_shaders.json");
-		return gson.fromJson(reader, Config.class);
+		Config cfg = gson.fromJson(reader, Config.class);
+		return (cfg != null) ? cfg : new Config();
 	}
 
 	public static class Config {
-		public String overworldShader;
-		public String netherShader;
-		public String endShader;
-
-		public Config(String overworldShader, String netherShader, String endShader) {
-			this.overworldShader = overworldShader;
-			this.netherShader = netherShader;
-			this.endShader = endShader;
-		}
-
-		public Config() {
-			this("", "", "");
-		}
+		/**
+		 * Key: dimension id string (e.g. "minecraft:overworld", "modid:my_dimension")
+		 * Value: shader pack name (empty/missing = off)
+		 */
+		public Map<String, String> shaders = new HashMap<>();
 	}
 
 	private String getPackName() {
-		return Iris.getCurrentPackName().equals("(off)") ? "" : Iris.getCurrentPackName();
+		String name = Iris.getCurrentPackName();
+		return "(off)".equals(name) ? "" : name;
 	}
 }

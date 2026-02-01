@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import net.fabricmc.api.ClientModInitializer;
 import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.config.IrisConfig;
+import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.mxb_683.dimension_based_shaders.callback.WorldLoadCallback;
 import net.mxb_683.dimension_based_shaders.modmenu.SettingsScreen;
@@ -25,30 +26,16 @@ public class DimensionBasedShadersClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		WorldLoadCallback.EVENT.register(player -> {
 			try {
-				String dimensionName = Iris.getCurrentDimension().toString();
+				String dimensionId = Iris.getCurrentDimension().toString(); // e.g. "minecraft:overworld" / "modid:custom_dim"
 				IrisConfig irisConfig = Iris.getIrisConfig();
-
 				SettingsScreen.Config config = loadOrCreateConfig();
 
-				switch (dimensionName) {
-					case "minecraft:overworld":
-						irisConfig.setShadersEnabled(true);
-						irisConfig.setShaderPackName(config.overworldShader);
-						break;
-					case "minecraft:the_nether":
-						irisConfig.setShadersEnabled(true);
-						irisConfig.setShaderPackName(config.netherShader);
-						break;
-					case "minecraft:the_end":
-						irisConfig.setShadersEnabled(true);
-						irisConfig.setShaderPackName(config.endShader);
-						break;
-					case "":
-						irisConfig.setShadersEnabled(false);
-						break;
-					default:
-						break;
-				}
+				// Look up shader pack by dimension id (supports modded/custom dimensions)
+				String pack = (config.shaders != null) ? config.shaders.get(dimensionId) : null;
+				pack = (pack != null) ? pack.trim() : "";
+
+				irisConfig.setShadersEnabled(!pack.isEmpty());
+				irisConfig.setShaderPackName(pack);
 
 				irisConfig.save();
 				Iris.reload();
