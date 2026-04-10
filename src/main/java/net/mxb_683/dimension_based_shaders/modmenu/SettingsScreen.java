@@ -3,14 +3,12 @@ package net.mxb_683.dimension_based_shaders.modmenu;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.irisshaders.iris.Iris;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.gui.widget.TextWidget;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -22,13 +20,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class SettingsScreen extends Screen {
-	private static final Text SETTINGS_TITLE = Text.translatable("dimension_based_shaders.settings.title");
-	private static final int TEXT_FIELD_MAX_LENGTH = 256;
+	private static final Component SETTINGS_TITLE = Component.translatable("dimension_based_shaders.settings.title");
+	private static final int EDIT_BOX_MAX_LENGTH = 256;
 
 	private final Screen parent;
 
-	// One text field per dimension id (e.g. "minecraft:overworld", "modid:my_dim")
-	private final Map<String, TextFieldWidget> shaderFieldsByDimension = new LinkedHashMap<>();
+	// One EditBox per dimension id (e.g. "minecraft:overworld", "modid:my_dim")
+	private final Map<String, EditBox> shaderFieldsByDimension = new LinkedHashMap<>();
 
 	protected SettingsScreen(Screen parent) {
 		super(SETTINGS_TITLE);
@@ -42,7 +40,8 @@ public class SettingsScreen extends Screen {
 		int centerX = this.width / 2;
 		int fieldWidth = this.width - labelWidth - buttonWidth - 60;
 
-		this.addDrawableChild(new TextWidget(centerX - 75, 20, 150, 20, SETTINGS_TITLE, this.textRenderer));
+		// StringWidget replaces ComponentWidget; this.font replaces this.textRenderer/ComponentRenderer
+		this.addRenderableWidget(new StringWidget(centerX - 75, 20, 150, 20, SETTINGS_TITLE, this.font));
 
 		// Build list of dimension ids known to the client right now.
 		// This includes modded dimensions as long as they're present in the synced registries.
@@ -53,19 +52,32 @@ public class SettingsScreen extends Screen {
 		dimensionIdsToLabel.put("minecraft:the_nether", "minecraft:the_nether");
 		dimensionIdsToLabel.put("minecraft:the_end", "minecraft:the_end");
 
-		// Always include the current dimension if registry access fails
-		if (this.client.world != null) {
-			dimensionIdsToLabel.put(this.client.world.getRegistryKey().getValue().toString(), this.client.world.getRegistryKey().getValue().toString());
+		// Always include the current dimension if registry access fails.
+		// 26.1: level.dimension() replaces world.getRegistryKey()
+		//       ResourceKey.id()    replaces ResourceKey.location() (renamed alongside ResourceLocation -> Identifier)
+		if (this.minecraft.level != null) {
+			String currentDim = this.minecraft.level.dimension().identifier().toString();
+			dimensionIdsToLabel.put(currentDim, currentDim);
 		}
 
-		if (this.client.world != null) {
+		if (this.minecraft.level != null) {
 			try {
-				for (Identifier id : this.client.world.getRegistryManager().getOrThrow(RegistryKeys.DIMENSION_TYPE).getIds()) {
-					if (id.toString().equals("minecraft:overworld_caves")) continue;
-					dimensionIdsToLabel.putIfAbsent(id.toString(), id.toString());
-				}
+				// 26.1: registryAccess()  replaces getRegistryManager()
+				//       lookupOrThrow()   replaces registryOrThrow() (removed in 1.21.2, absent in 26.1);
+				//                         returns HolderLookup.RegistryLookup<T>, not Registry<T>
+				//       listElementIds()  streams ResourceKey<T> values from the lookup
+				//       ResourceKey.id()  returns Identifier (replaces ResourceKey.location())
+				//       Registries.*      replaces RegistryKeys.*
+				this.minecraft.level.registryAccess()
+						.lookupOrThrow(Registries.DIMENSION_TYPE)
+						.listElementIds()
+						.filter(key -> !key.identifier().toString().equals("minecraft:overworld_caves"))
+						.forEach(key -> {
+							String idStr = key.identifier().toString();
+							dimensionIdsToLabel.putIfAbsent(idStr, idStr);
+						});
 			} catch (Throwable ignored) {
-				// If anything goes wrong (e.g. API differences), fall back to the vanilla list above.
+				// If anything goes wrong (e.g., API differences), fall back to the vanilla list above.
 			}
 		}
 
@@ -84,41 +96,41 @@ public class SettingsScreen extends Screen {
 			String dimId = entry.getKey();
 			String label = entry.getValue();
 
-			// label
-			this.addDrawableChild(new TextWidget(20, y, labelWidth, 20, Text.literal(label), this.textRenderer));
+			// Label
+			this.addRenderableWidget(new StringWidget(20, y, labelWidth, 20, Component.literal(label), this.font));
 
-			// text field
-			TextFieldWidget field = new TextFieldWidget(this.textRenderer, labelWidth + 30, y, fieldWidth, 20, Text.empty());
-			field.setMaxLength(TEXT_FIELD_MAX_LENGTH);
+			// Text field — EditBox replaces ComponentFieldWidget (Yarn: TextFieldWidget)
+			EditBox field = new EditBox(this.font, labelWidth + 30, y, fieldWidth, 20, Component.empty());
+			field.setMaxLength(EDIT_BOX_MAX_LENGTH);
+			// setValue() / getValue() replace setComponent() / getComponent()
+			field.setValue(config.shaders.getOrDefault(dimId, ""));
 
-			String existing = config.shaders.getOrDefault(dimId, "");
-			field.setText(existing);
-
-			this.addDrawableChild(field);
+			this.addRenderableWidget(field);
 			shaderFieldsByDimension.put(dimId, field);
 
-			// "use current pack" button for this row
-			this.addDrawableChild(ButtonWidget.builder(
-					Text.translatable("dimension_based_shaders.settings.get_current_button"),
-					button -> field.setText(getPackName())
-			).dimensions(labelWidth + fieldWidth + 40, y, buttonWidth, 20).build());
+			// "Use current pack" button — Button replaces ButtonWidget
+			this.addRenderableWidget(Button.builder(
+					Component.translatable("dimension_based_shaders.settings.get_current_button"),
+                    _ -> field.setValue(getPackName())
+			).bounds(labelWidth + fieldWidth + 40, y, buttonWidth, 20).build());
 
 			y += rowHeight;
 		}
 
-		// cancel/save buttons
-		this.addDrawableChild(ButtonWidget.builder(
-				Text.translatable("dimension_based_shaders.settings.close_button"),
-				button -> this.client.setScreen(this.parent)
-		).dimensions(centerX - 155, this.height - 40, 150, 20).build());
+		// Cancel — this.minecraft.setScreen() replaces this.client.setScreen()
+		this.addRenderableWidget(Button.builder(
+				Component.translatable("dimension_based_shaders.settings.close_button"),
+				_ -> this.minecraft.setScreen(this.parent)
+		).bounds(centerX - 155, this.height - 40, 150, 20).build());
 
-		this.addDrawableChild(ButtonWidget.builder(
-				Text.translatable("dimension_based_shaders.settings.save_button"),
-				button -> {
+		// Save
+		this.addRenderableWidget(Button.builder(
+				Component.translatable("dimension_based_shaders.settings.save_button"),
+				_ -> {
 					saveConfig();
-					this.client.setScreen(this.parent);
+					this.minecraft.setScreen(this.parent);
 				}
-		).dimensions(centerX + 5, this.height - 40, 150, 20).build());
+		).bounds(centerX + 5, this.height - 40, 150, 20).build());
 	}
 
 	private void saveConfig() {
@@ -131,9 +143,9 @@ public class SettingsScreen extends Screen {
 
 			Config config = new Config();
 
-			for (Map.Entry<String, TextFieldWidget> e : shaderFieldsByDimension.entrySet()) {
+			for (Map.Entry<String, EditBox> e : shaderFieldsByDimension.entrySet()) {
 				String dimId = e.getKey();
-				String shaderPack = e.getValue().getText().trim();
+				String shaderPack = e.getValue().getValue().trim();
 				if (!shaderPack.isEmpty()) {
 					config.shaders.put(dimId, shaderPack);
 				}
@@ -157,7 +169,7 @@ public class SettingsScreen extends Screen {
 
 	public static class Config {
 		/**
-		 * Key: dimension id string (e.g. "minecraft:overworld", "modid:my_dimension")
+		 * Key: dimension id string (e.g. "minecraft:overworld", "mod_id:my_dimension")
 		 * Value: shader pack name (empty/missing = off)
 		 */
 		public Map<String, String> shaders = new HashMap<>();

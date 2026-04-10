@@ -22,9 +22,6 @@
       "net.mxb_683.dimension_based_shaders.modmenu.SettingsMenu"
     ]
   },
-  "mixins": [
-    "dimension_based_shaders.mixins.json"
-  ],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
