@@ -120,7 +120,7 @@ public class SettingsScreen extends Screen {
 		// Cancel — this.minecraft.setScreen() replaces this.client.setScreen()
 		this.addRenderableWidget(Button.builder(
 				Component.translatable("dimension_based_shaders.settings.close_button"),
-				_ -> this.minecraft.setScreen(this.parent)
+				_ -> this.minecraft.setScreenAndShow(this.parent)
 		).bounds(centerX - 155, this.height - 40, 150, 20).build());
 
 		// Save
@@ -128,7 +128,7 @@ public class SettingsScreen extends Screen {
 				Component.translatable("dimension_based_shaders.settings.save_button"),
 				_ -> {
 					saveConfig();
-					this.minecraft.setScreen(this.parent);
+					this.minecraft.setScreenAndShow(this.parent);
 				}
 		).bounds(centerX + 5, this.height - 40, 150, 20).build());
 	}

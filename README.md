@@ -35,7 +35,7 @@ However, typing the whole name is tedious and could cause mispellings, so you ca
 
 ## Requirements
 
-- **Minecraft:** `1.21.11`
+- **Minecraft:** `≥1.21.11`
 - **Mod Loader:** Fabric
 - **Required:** Fabric API, Iris (therefore, also Sodium)
 - **Recommended:** Mod Menu
