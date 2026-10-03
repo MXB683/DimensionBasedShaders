@@ -10,6 +10,13 @@ base {
     archivesName = project.archives_base_name
 }
 
+loom {
+    runs {
+        client {
+            vmArg "-Dsodium.checks.issue2561=false"
+        }
+    }
+}
 
 repositories {
     mavenCentral()
@@ -81,9 +88,6 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
     def javaVersion = JavaVersion.toVersion(targetJavaVersion)
-    if (JavaVersion.current() < javaVersion) {
-        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    }
     // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
     // if it is present.
     // If you remove this line, sources will not be generated.
